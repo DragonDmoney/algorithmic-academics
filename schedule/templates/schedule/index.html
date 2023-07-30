@@ -1,0 +1,220 @@
+<html>
+<head>
+    <title>Work Load Schedule</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <title>Algorithmic Academics</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <style>
+body {
+  background-color: #f5f7fa;
+}
+    </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">Algorithmic Academics</a>
+    <span class="navbar-text">
+      {{user.username}}
+    </span>
+  </nav>
+  <div class="container mt-5">
+    <h4>You have <b>{{total}}</b> minutes of work left.</h4>
+    <div class="row bg-white p-4 rounded mt-4">
+      <div class="col-8">
+        <canvas id="workloadChart"></canvas>
+      </div>
+      <div class="col">
+        <canvas id="todayWork"></canvas>
+      </div>
+    </div>
+    <div class="row bg-white p-4 mt-3 rounded">
+      <div class="col">
+        <h5>Assignments</h5>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Remaining Work (hours)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for assignment in assignments %}
+              <tr>
+                <th>{{assignment.name}}</th>
+                <td>{{assignment.start_date}}</th>
+                <td>{{assignment.end_date}}</th>
+                <td assignment="{{assignment.name}}" contenteditable="true" class="work-loads form-control h-100">{{assignment.work_load}}</th>
+                <td><button assignment="{{assignment.name}}" onclick="deleteAssignment(this)" class="btn btn-danger">Delete</button></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-primary" onclick="addAssignment()">Add Assignment</button>
+        <button onclick="saveAssignments()" type="button" class="btn btn-primary float-right">Save Changes</button>
+        <div class="d-none card mt-3" id="addAssignment" style="position:absolute; top:25%; width:50%; right:25%;">
+          <div class="card-header">
+            Add Assignment
+          </div>
+          <div class="card-body">
+            <form method="POST" action="/">
+              {% csrf_token %}
+              <div class="form-group">
+                  <label for="name">Assignment Name</label>
+                  <input type="text" class="form-control" id="name" name="name">
+              </div>
+              <div class="form-group">
+                  <label for="start_date">Start Date</label>
+                  <input type="date" class="form-control" id="start_date" name="start_date">
+              </div>
+              <div class="form-group">
+                  <label for="end_date">End Date</label>
+                  <input type="date" class="form-control" id="end_date" name="end_date">
+              </div>
+              <div class="form-group">
+                  <label for="work_load">Work Load</label>
+                  <input type="number" class="form-control" id="work_load" name="work_load">
+              </div>
+              <button onclick="submitAssignment()" type="submit" class="btn btn-primary">Add Assignment</button>
+              <button type="button" class="btn btn-secondary" onclick="submitAssignment()">Cancel</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function addAssignment() {
+      document.getElementById("addAssignment").classList.toggle("d-none");
+    }
+
+    function submitAssignment() {
+      document.getElementById("addAssignment").classList.toggle("d-none");
+    };
+
+    function saveAssignments() {
+      const assignments = document.getElementsByClassName("work-loads");
+      const assignmentData = [];
+      for (let i = 0; i < assignments.length; i++) {
+        const assignment = assignments[i];
+        assignmentData.push({
+          name: assignment.getAttribute("assignment"),
+          work_load: assignment.innerText,
+        });
+      }
+      $.ajax({
+        type: "POST",
+        url: "/",
+        data: {
+          assignments: JSON.stringify(assignmentData),
+          csrfmiddlewaretoken: "{{ csrf_token }}",
+        },
+        success: function(response) {
+          console.log(response);
+          location.reload();
+        },
+        error: function(response) {
+          console.log(response);
+        }
+      });
+    }
+
+    function deleteAssignment(target) {
+      const assignmentName = target.getAttribute("assignment");
+      $.ajax({
+        type: "POST",
+        url: "/",
+        data: {
+          delete: assignmentName,
+          csrfmiddlewaretoken: "{{ csrf_token }}",
+        },
+        success: function(response) {
+          console.log(response);
+          location.reload();
+        },
+        error: function(response) {
+          console.log(response);
+        }
+      });
+
+    }
+  </script>
+
+  <script>
+      const labels = {{ labels|safe }};
+      const data = {{ line_chart_data|safe }};
+
+      function formatDate(date) {
+        const month = date.toLocaleString('default', { month: 'long' });
+        const day = date.getDate();  // This will return the day of the month from 1 through 31
+
+        return `${month} ${day}`;
+      }
+
+      const datasets = Object.entries(data).map(([name, values], index) => ({
+          label: name,
+          data: values,
+      }));
+
+      new Chart(document.getElementById('workloadChart'), {
+          type: 'bar',
+          data: {
+              labels,
+              datasets
+          },
+          options: {
+            scales: {
+                x: {
+                    stacked: true,
+                    title: {
+                      display: true,
+                      text: 'Date'
+                    }
+                },
+                y: {
+                  stacked: true,
+                  title: {
+                    display: true,
+                    text: 'Work Load'
+                  }
+                },
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: 'Schedule'
+              },
+            }
+          },
+      });
+
+      new Chart(document.getElementById("todayWork"), {
+        type: 'doughnut',
+        data: {
+          labels: {{today_chart_labels|safe}},
+          datasets: [{
+            label: "Work Done",
+            data: {{today_chart_data|safe}}
+          }]
+        },
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Work for today'
+            }
+          }
+        }
+      })
+  </script>
+
+  <script>
+  </script>
+</body>
+</html>
+
+
